@@ -159,7 +159,7 @@ if __name__ == '__main__':
             transforms.Grayscale(num_output_channels=1),  # 彩色图像转灰度图像num_output_channels默认1
             transforms.ToTensor(),
             # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            transforms.Normalize([0.210], [0.282])
+            transforms.Normalize([0.210], [0.283])
         ]),
         'val': transforms.Compose([
             transforms.Resize(input_size),
@@ -167,7 +167,7 @@ if __name__ == '__main__':
             transforms.Grayscale(num_output_channels=1),  # 彩色图像转灰度图像num_output_channels默认1
             transforms.ToTensor(),
             # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            transforms.Normalize([0.210], [0.210])
+            transforms.Normalize([0.210], [0.283])
         ]),
     }
 
