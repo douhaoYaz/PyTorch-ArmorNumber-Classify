@@ -15,12 +15,13 @@ import torch.nn as nn
 from Lenet5 import Lenet5
 
 input_size = 48
-names = ['0', '1', '2', '3', '4', '5']
+# names = ['0', '1', '2', '3', '4', '5']
+names = ['1', '2', '3', '4', '6']
 def pridict():
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model=Lenet5()
-    model.load_state_dict(torch.load("Lenet5_v2.pth"))
+    model.load_state_dict(torch.load("Lenet5_v3.pth"))
     model = model.to(device)
     model.eval()  # 推理模式
 
@@ -33,7 +34,8 @@ def pridict():
             transforms.Resize(input_size),
             transforms.CenterCrop(input_size),
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Normalize([0.485], [0.229])
         ])
 
 
