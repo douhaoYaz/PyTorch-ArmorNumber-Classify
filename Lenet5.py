@@ -10,7 +10,7 @@ from torch.nn import functional as F
 
 class Lenet5(nn.Module):
     """
-    for ArmorNum dataset(3×48×48）
+    for ArmorNum 1 channel dataset(1×48×48）
     """
     def __init__(self):
         # 调用类的初始化方法来初始化父类
@@ -20,9 +20,9 @@ class Lenet5(nn.Module):
         # 用Sequential包含网络，可以方便地组织各种结构
         self.conv_unit = nn.Sequential(
             # 建立一个卷积层
-            # x:[b, 3, 48, 48] => [b, 6, ?, ?] 大小size暂时未知，因为它与kernel_size、stride和padding有关，大概在32左右
+            # x:[b, 1, 48, 48] => [b, 6, ?, ?] 大小size暂时未知，因为它与kernel_size、stride和padding有关，大概在32左右
             # 根据Yann LeCun的paper，第一个卷积层的输出是6个channels
-            nn.Conv2d(3, 6, kernel_size=5, stride=1, padding=0),
+            nn.Conv2d(1, 6, kernel_size=5, stride=1, padding=0),
             # 在Yann LeCun的Lenet5 paper中，第二层是个Subsampling层，我们这里用pooling池化层
             nn.AvgPool2d(kernel_size=2, stride=2, padding=0),
             # 第三层，第二个卷积层
@@ -41,7 +41,7 @@ class Lenet5(nn.Module):
             nn.ReLU(),
             nn.Linear(120, 84),
             nn.ReLU(),
-            nn.Linear(84, 6)
+            nn.Linear(84, 5)
         )
 
         # # 临时构造一个tmp数据，用于测试conv_unit到fc_unit的第一个Linear层的第一个参数是多少
@@ -56,7 +56,7 @@ class Lenet5(nn.Module):
 
     def forward(self, x):
         """
-        :param x: [b, 3, 48, 48]
+        :param x: [b, 1, 48, 48]
         :return: logits
         """
         batchsz = x.size(0)
@@ -69,3 +69,9 @@ class Lenet5(nn.Module):
         logits = self.fc_unit(x)
 
         return logits
+
+if __name__ == '__main__':
+    tmp = torch.randn(2, 1, 48, 48)
+    net = Lenet5()
+    pred = net(tmp)
+    print('pred:', pred.shape)
