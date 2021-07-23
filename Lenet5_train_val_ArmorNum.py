@@ -16,15 +16,16 @@ import time
 import os
 import copy
 from Lenet5 import Lenet5
+from PIL import Image
 
 # 训练数据目录
-data_dir = "./2021_7_20工业相机获取装甲板号码数据集"
+data_dir = "./2021_7_23工业相机获取装甲板号码数据集"
 
 # 训练网络名
 model_name = "Lenet"
 
 # 权重文件输出目录及名称
-output_path="./Lenet5_v2.pth"
+output_path="./Lenet5_v3.pth"
 
 # 学习率
 lr_rate = 0.001
@@ -36,7 +37,7 @@ num_classes = 5
 batch_size = 8
 
 # 训练次数
-num_epochs = 15
+num_epochs = 20
 
 # False时候更新所有参数，True时候只更新最后一层的参数
 feature_extract = False
@@ -70,6 +71,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
 
             # Iterate over data.
             for inputs, labels in dataloaders[phase]:
+
                 inputs = inputs.to(device)
                 labels = labels.to(device)
 
@@ -154,18 +156,21 @@ if __name__ == '__main__':
         'train': transforms.Compose([
             transforms.RandomResizedCrop(input_size),
             transforms.RandomHorizontalFlip(),
+            transforms.Grayscale(num_output_channels=1),  # 彩色图像转灰度图像num_output_channels默认1
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Normalize([0.210], [0.282])
         ]),
         'val': transforms.Compose([
             transforms.Resize(input_size),
             transforms.CenterCrop(input_size),
+            transforms.Grayscale(num_output_channels=1),  # 彩色图像转灰度图像num_output_channels默认1
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            transforms.Normalize([0.210], [0.210])
         ]),
     }
 
-    print("Initializing Datasets and Dataloaders...")
 
     # Create training and validation datasets
     image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
