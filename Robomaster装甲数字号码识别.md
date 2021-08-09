@@ -2,158 +2,14 @@
 
 
 
-## 开发流程
+## 开发过程
 
-* 开发环境
-* PyTorch编写神经网络
-* 训练模型
-* 检查模型（可选）
-* 转换模型格式为onnx
-* 检查onnx的模型
-* 将onnx模型部署到OpenCV C++上
-
-
-
-
-
-## 开发环境
-
-训练模型：Windows Pycharm PyTorch
-
-部署模型：Ubuntu QT5 OpenCV C++
-
-
-
-
-
-## PyTorch编写神经网络
-
-此处编写Lenet-5网络
-
-因为Robomaster的视觉处理对速度要求比较高，模型结构越简单越好，前向传播所花时间也越短（前提是保证准确率，不过也不用特别高）
-
-```python
-# Lenet5.py
-
-import torch
-from torch import nn
-from torch.nn import functional as F
-
-class Lenet5(nn.Module):
-    """
-    for ArmorNum dataset
-    """
-    def __init__(self):
-        # 调用类的初始化方法来初始化父类
-        super(Lenet5, self).__init__()
-
-        # 新建一个conv_unit变量
-        # 用Sequential包含网络，可以方便地组织各种结构
-        self.conv_unit = nn.Sequential(
-            # 建立一个卷积层
-            # x:[b, 3, 48, 48] => [b, 6, ?, ?] 大小size暂时未知，因为它与kernel_size、stride和padding有关，大概在32左右
-            # 根据Yann LeCun的paper，第一个卷积层的输出是6个channels
-            nn.Conv2d(3, 6, kernel_size=5, stride=1, padding=0),
-            # 在Yann LeCun的Lenet5 paper中，第二层是个Subsampling层，我们这里用pooling池化层
-            nn.AvgPool2d(kernel_size=2, stride=2, padding=0),
-            # 第三层，第二个卷积层
-            nn.Conv2d(6, 16, kernel_size=5, stride=1, padding=0),
-            # 第四层，再来一个池化层
-            nn.AvgPool2d(kernel_size=2, stride=2, padding=0)
-            # 接下来是Full connection全连接层，需要用Flatten，将经过上面四层处理的输出原本是四维的转换成二维，因为Pytorch没有这个转换的类，所以不能在Sequential里完成Full connection,只能用view方法进行flatten
-            # 因此建立两个unit，一个是这里的conv_unit，一个是下面的fc_unit
-        )
-        
-        # 临时构造一个tmp数据，用于测试conv_unit到fc_unit的第一个Linear层的第一个参数是多少
-        # [b, 3, 48, 48]
-        tmp = torch.randn(2, 3, 48, 48)
-        out = self.conv_unit(tmp)
-        # [b, 16, 9, 9]
-        print('conv out:', out.shape)
-        
-        
-if __name__ == '__main__':
-    net = Lenet5()
-    
-```
-
-为了确认conv_unit到fc_unit的第一个linear层的第一个参数是多少，需要临时构造一个数据输入conv_unit运行，查看输出的shape
-
-得到输出的shape后，继续编写fc_unit全连接层单元
-
-```python
-# Lenet5.py
-
-import torch
-from torch import nn
-from torch.nn import functional as F
-
-class Lenet5(nn.Module):
-    """
-    for ArmorNum dataset(3×48×48）
-    """
-    def __init__(self):
-        # 调用类的初始化方法来初始化父类
-        super(Lenet5, self).__init__()
-
-        # 新建一个conv_unit变量
-        # 用Sequential包含网络，可以方便地组织各种结构
-        self.conv_unit = nn.Sequential(
-            # 建立一个卷积层
-            # x:[b, 3, 48, 48] => [b, 6, ?, ?] 大小size暂时未知，因为它与kernel_size、stride和padding有关，大概在32左右
-            # 根据Yann LeCun的paper，第一个卷积层的输出是6个channels
-            nn.Conv2d(3, 6, kernel_size=5, stride=1, padding=0),
-            # 在Yann LeCun的Lenet5 paper中，第二层是个Subsampling层，我们这里用pooling池化层
-            nn.AvgPool2d(kernel_size=2, stride=2, padding=0),
-            # 第三层，第二个卷积层
-            nn.Conv2d(6, 16, kernel_size=5, stride=1, padding=0),
-            # 第四层，再来一个池化层
-            nn.AvgPool2d(kernel_size=2, stride=2, padding=0)
-            # 接下来是Full connection全连接层，需要用Flatten，将经过上面四层处理的输出原本是四维的转换成二维，因为Pytorch没有这个转换的类，所以不能在Sequential里完成Full connection,只能用view方法进行flatten
-            # 因此建立两个unit，一个是这里的conv_unit，一个是下面的fc_unit
-        )
-
-        # Full connection unit，全连接层
-        self.fc_unit = nn.Sequential(
-            # 因为不知道conv_unit输出的shape是怎样的，因此下面nn.Linear的第一个参数需要通过下面的tmp和out测试conv_unit输出的shape来决定
-            # 这里的16*5*5是已经通过测试得到的
-            nn.Linear(16 * 9 * 9, 120),
-            nn.ReLU(),
-            nn.Linear(120, 84),
-            nn.ReLU(),
-            nn.Linear(84, 6)
-        )
-
-        # # 临时构造一个tmp数据，用于测试conv_unit到fc_unit的第一个Linear层的第一个参数是多少
-        # # [b, 3, 48, 48]
-        # tmp = torch.randn(2, 3, 48, 48)
-        # out = self.conv_unit(tmp)
-        # # [b, 16, 9, 9]
-        # print('conv out:', out.shape)
-
-        # # 因为softmax()函数的输出不稳定，因此这里使用包含了softmax()的CrossEntropyLoss
-        # self.criterion = nn.CrossEntropyLoss()
-
-    def forward(self, x):
-        """
-        :param x: [b, 3, 48, 48]
-        :return: logits
-        """
-        batchsz = x.size(0)
-        # [b, 3, 48, 48] => [b, 16, 9, 9]
-        x = self.conv_unit(x)
-        # [b, 16, 9, 9] => [b, 16*9*9]
-        x = x.view(batchsz, 16*9*9)     # 也可写成x = x.view(batchsz, -1)
-        # [b, 16*9*9] => [b, 6]
-        # 因为经过fc_unit全连接层之后，还要经过softmax()函数处理，这个在全连接层后softmax()前的输出就叫logits
-        logits = self.fc_unit(x)
-
-        return logits
-```
-
-这个Lenet5.py作为一个模块
-
-接下来编写训练模型的代码，可以在里面调用Lenet5.py模块
+* 看深度学习与PyTorch入门实战
+* 根据在Github找的开源代码，用装甲板数据集训练Resnet模型
+* 把Resnet模型从.pth转换成.pt格式，并尝试使用libtorch把模型部署在Ubuntu QT5 环境C++代码上
+* 把Resnet模型从.pth转换成.onnx格式，并尝试把.onnx格式的Resnet模型部署在Ubuntu QT5 环境C++代码上
+* 在Ubuntu上用OpenCV进行数据预处理
+* 更换模型为Lenet-5以降低数字号码识别处理时间
 
 
 
@@ -161,107 +17,42 @@ class Lenet5(nn.Module):
 
 ## 训练模型
 
-接下来需要训练并导出训练好的模型
+参考Github开源的PyTorch训练模型项目，使用48×48的装甲板0到5号号码图片作为数据集训练resnet18模型
 
-为此编写Lenet5_train_val.py，代码比较长就不放在md文件里了
-
-在原来代码的基础上，只需要修改以下地方来适配：
-
-* data_dir：数据集的路径，必须包含train和val两个目录，代码会从该路径加载训练集和验证机
-* output_path：模型文件输出的路径和名称
-* model_name：训练网络名
-* lr_rate：学习率
-* num_classses：种类数目，必须和要调用的网络匹配
-* batch_size：不能太小，也不能太大
-* num_epoches：训练次数
-
-如果想要调用其他模型，需要在main里修改
-
-```python
-model_ft = Lenet5()
-```
-
-修改Lenet5()为其他网络。不过记得先把那个网络的文件导入才能调用
-
-同时根据需要调整input_size，也就是输入数据的(B, C, H, W)的后两维
-
-
-
-运行Lenet5_train_val.py：
-
-* 在Windows“开始”，打开Anaconda Prompt
-* cd到Pycharm的该项目的目录
-* 输入python Lenet5_train_val.py即可运行程序
-
-
-
-## 检查模型（可选）
-
-训练好模型后，可以加载一张图片作为输入来检查模型
-
-```python
-# predict_Lenet5_for_ArmorNum.py
-
-import torchvision as tv
-import torchvision.transforms as transforms
-import torch
-from PIL import Image
-import torch.nn as nn
-from Lenet5 import Lenet5
-
-input_size = 48
-names = ['0', '1', '2', '3', '4', '5']
-def pridict():
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model=Lenet5()
-    model.load_state_dict(torch.load("Lenet5_ArmorNum.pth"))
-    model = model.to(device)
-    model.eval()  # 推理模式
-
-    # 获取测试图片，并行相应的处理
-    img = Image.open('test.png')
-    # 查看转换前的img的格式
-    print("img shape before trransform:", img)
-    transform = transforms.Compose([
-            transforms.Resize(input_size),
-            transforms.CenterCrop(input_size),
-            transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
-
-
-    img = transform(img)
-    # 查看转换后的img的格式
-    print('img shape after transform:', img.shape)
-    # print('img pixel after transform:', img)
-    img = img.unsqueeze(0)
-    # 查看unsqueeze之后的img的格式
-    print('img shape after unsqueeze:', img.shape)
-    img = img.to(device)
-
-
-    with torch.no_grad():
-        py = model(img)
-    _, predicted = torch.max(py, 1)  # 获取分类结果
-    classIndex_ = predicted[0]
-
-    print('predict:', py)
-    print('预测结果：', names[classIndex_])
-
-
-if __name__ == '__main__':
-    pridict()
-
-```
-
-同时可查看输入图片经过transform和unsqueeze前后的格式
+写该markdown时整理参考了的博客时，发现一篇blog是基于这个Github开源改的，并且有注释：[C++利用opencv调用pytorch训练好的分类模型](https://blog.csdn.net/qq_30263737/article/details/114287291)
 
 
 
 
 
-## 转换模型格式为onnx并检查模型
+## libtorch部署模型到Ubuntu QT5 环境C++代码
+
+模型训练好了，接下来需要把模型部署到代码里
+
+参考了一些CSDN的资料：
+
+* [ubuntu16.04使用C++调用pytorch训练的模型，并使用opencv进行数据加载和预测](https://blog.csdn.net/qq_36852276/article/details/106343051)
+* [Ubuntu下C++调用pytorch训练好模型--利用libtorch](https://blog.csdn.net/qq_36481821/article/details/107504333?ops_request_misc=&request_id=&biz_id=102&utm_term=PyTorch%20libtorch&utm_medium=distribute.pc_search_result.none-task-blog-2~all~sobaiduweb~default-8-.first_rank_v2_pc_rank_v29&spm=1018.2226.3001.4187)
+
+先在PyTorch官网下载libtorch
+
+然后需要把libtorch导入QT的.pro文件里配置
+
+参考了CSDN文章并综合了自己的视觉代码来编写.pro文件，但是编译时QT总是报奇怪的错，怎样也无法通过编译
+
+很大可能是因为libtorch只能和OpenCV 3.4.0兼容（一些blog和知乎里提到）
+
+也有可能是因为没有安装cuda（虽然说libtorch有cpu版和cuda版，但两者都尝试过仍然无法通过编译）
+
+遇到的困难是：我的电脑给Ubuntu系统分配的存储空间不够了，无法再安装cuda，除非重装重新分配空间，但是临近比赛，时间不允许
+
+另外是实验室的Intel NUC是没有GPU的，装了cuda也没用，而且NUC已经安装了OpenCV 4.4.0，这段时间经常需要测试，无法承受重装OpenCV 3.4.0的风险
+
+于是只好暂时放弃用libtorch部署模型的方案，正好看到blog介绍到，除了用libtorch部署外，还可以把模型格式转换为onnx格式，OpenCV支持onnx格式的模型
+
+
+
+## PyTorch将.pth格式转换成.onnx格式
 
 参考资料：
 
@@ -272,32 +63,21 @@ if __name__ == '__main__':
 编写pth2onnx.py（因为官网的例子不太适用于我的情况，我这里已经训练好一个模型了，所以下面的版本是综合了官网例子和几篇CSDN博客写的）
 
 ```python
-# pth2onnx_Lenet5.py
-
-import torch
-import torchvision
-import torch.nn as nn
-import onnx
-import onnxruntime
-import numpy as np
-from Lenet5 import Lenet5
-
-#model = torchvision.models.resnet50(pretrained=True)
-model=Lenet5()
-model.load_state_dict(torch.load("Lenet5_ArmorNum.pth"))
-
+# torchvision里预先定义好的模型resnet18
+model=torchvision.models.resnet18(pretrained=True)
+# 初始化模型结构参数
+num_ftrs = model.fc.in_features
+model.fc = nn.Linear(num_ftrs, 6)
+# 加载之前训练好的renset18模型参数
+model.load_state_dict(torch.load("resnet18_ArmorNum.pth"))
+# 设为推理模式
 model.eval()
 
 batch_size = 1
-# example = torch.rand(1, 3, 224, 224)
+# 随机生成一个输入
 example = torch.rand(batch_size, 3, 48, 48, requires_grad=True)
-
-# print output with the purpose of comparing pth and onnx
-output_pth = model(example)
-print('output_pth:', output_pth)
-
-# --------------------------------
-export_onnx_file = "Lenet5_v1.onnx"
+# 导出onnx模型
+export_onnx_file = "resnet18v8.onnx"
 torch.onnx.export(model,
                   example,
                   export_onnx_file,
@@ -307,40 +87,172 @@ torch.onnx.export(model,
                   do_constant_folding=True,
                   input_names=['input'],
                   output_names=['output']
-                  )
-
-# 使用ONNX的api检查ONNX模型
-# 加载保存的模型并输出onnx.ModelProto结构
-onnx_model = onnx.load("Lenet5_v1.onnx")
-# 验证模型的结构并确认模型具有有效的架构
-onnx.checker.check_model(onnx_model)
-
-ort_session = onnxruntime.InferenceSession("Lenet5_v1.onnx")
-
-def to_numpy(tensor):
-    return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()
-
-# compute ONNX runtime output prediction
-ort_inputs = {ort_session.get_inputs()[0].name:to_numpy(example)}
-ort_outputs = ort_session.run(None, ort_inputs)
-
-print('output_onnx:', ort_outputs)
-
-# compare ONNX Runtime and Pytorch results
-np.testing.assert_allclose(to_numpy(output_pth), ort_outputs[0], rtol=1e-03, atol=1e-05)
-
-print('Exported model has been tested with ONNXRuntime, and the result looks good!')
+                 )
 ```
 
 
 
 
 
-## 将onnx模型部署到OpenCV C++上
+## 部署.onnx格式Resnet模型到Ubuntu QT5 环境C++代码
 
-需要在Ubuntu OpenCV C++上对输入数据用和PyTorch中transform操作同样的缩放以及归一化
+将resnet18.onnx模型文件copy到Intel NUC上
+
+因为直接把模型部署到Robomaster视觉代码上面运行需要连接摄像头并使用装甲板，为避免测试成本太高，于是编写ONNX_Test.cpp代码
+
+在ONNX_Test代码中，可以加载48×48的装甲板图片，并加载resnet18_ArmorNum.onnx模型来初始化OpenCV中dnn模块的Net类，使用net类可以在C++实现前向传播，从而得到预测结果，参考了以下博客
+
+* [OpenCV加载ONNX模型并推理](https://blog.csdn.net/MrTianShu/article/details/118219547)
+* [Pytorch训练的分割网络模型在OpenCV4.0/C++上部署](https://blog.csdn.net/ppCuda/article/details/103393679)
+
+遗憾的是预测结果并不准确，猜测是以下几个地方存在问题：
+
+* 模型从.pth格式转换到.onnx格式后可能网络结构会产生变化，导致相同的输入在.pth和.onnx上会得到不同的输出
+* 在Ubuntu QT5 C++环境，使用OpenCV的dnn模块Net类的forward前向传播，与Windows Pycharm PyTorch环境的前向传播，两者会得到不同的输出
+* 使用cuda训练的模型，在没有cuda的环境下跑是否会对结果有影响
+* 在PyTorch和在C++对输入数据的处理不同
+
+根据以上几点寻找问题所在
+
+
+
+
+
+## 寻找在Ubuntu OpenCV C++环境下.onnx格式模型得不到正确预测的原因
+
+对于同一装甲板图像数据，在Windows PyTorch下使用resnet18_ArmorNum.pth模型能够得到正确预测值
+
+但在Ubuntu OpenCV C++下使用resnet18_ArmorNum.onnx模型不能得到正确预测值
+
+### 尝试调整.pth转.onnx格式的参数设置
+
+猜测可能是.pth格式转.onnx格式的转换操作参数设置不正确
+
+参考了CSDN上.pth格式转.onnx格式的操作，对pth2onnx.py文件进行修改
+
+* [Pytorch训练的分割网络模型在OpenCV4.0/C++上部署](https://blog.csdn.net/ppCuda/article/details/103393679)
+* [pytorch转换为onnx](https://blog.csdn.net/yangdashi888/article/details/104198844)
+* [pytorch转onnx模型并进行推理](https://blog.csdn.net/qq_36202348/article/details/108984612)
+
+文章修改版本命名为resnet18v2.onnx、resnet18v3.onnx等，并copy到NUC上，在ONNX_Test代码中加载修改后的模型并查看预测值
+
+遗憾的是，参考CSDN上转换为.onnx格式的操作对pth2onnx.py的修改，无一能在ONNX_Test上得到正确输出
+
+于是打算直接测试比较两格式模型
+
+### 测试resnet18_ArmorNum.pth模型及其.onnx格式 在相同输入前提下是否能得到相同的预测输出
+
+对于模型从.pth格式转换到.onnx格式后网络结构是否会产生变化的问题，我们需要验证相同的输入是否会在.pth和.onnx上得到不同输出
+
+只需将原先的resnet18_ArmorNum.pth转换为resnet18_ArmorNum.onnx，并使用相同的值作为输入，比较两者输出即可判断问题是否出在模型转换上
+
+因此继续编写pth2onnx.py文件，此时代码中已经完成了.pth转换为.onnx并导出，在此基础上，随机生成一个tensor作为输入，并经过.pth格式的模型得到预测输出
+
+剩下的就是用.onnx格式的模型输出预测，但问题是如何在Pytorch上用.onnx格式的模型进行前向传播
+
+此时想起PyTorch官网将.pth转换成.onnx的教程：
+
+* PyTorch官网 > Tutorials > [(optional) Exporting a Model from PyTorch to ONNX and Running it using ONNX Runtime](https://pytorch.org/tutorials/advanced/super_resolution_with_onnxruntime.html)
+
+之前只参考了将.pth转换成.onnx的部分，教程中还有验证onnx模型结构并使用ONNXRuntime来运行模型输出预测
+
+于是参考PyTorch官方和CSDN博客 [Pytorch模型转成onnx并验证结果(排坑经验帖)](https://muzhan.blog.csdn.net/article/details/112642436) 编写验证并运行onnx模型的代码
+
+然后获得onnx模型的预测输出，比较.pth和.onnx的输出，发现两者结果一致
+
+基本得出结论：问题不是出在模型转换上
+
+## 验证数据预处理导致预测结果不一致 并研究预处理对数据造成的改变
+
+在NUC上进行Ubuntu QT5 OpenCV C++的ONNX_Test测试时，观察到输出的预测其中一位元素的值高达200，因为已基本排除是模型转换的问题，于是就怀疑问题出在输入的数据上。需要验证以下两点：
+
+* 在Windows Pytorch下的输入数据处理是否与在Ubuntu OpenCV C++上的一致
+* .pth格式和.onnx格式的模型的输入数据类型是否不一样
+
+检查代码发现，PyTorch下对输入的图片进行了transforms处理，而OpenCV C++上并没有对输入的图片数据进行处理，也许这就是两者处理的预测结果不一致的原因
+
+```python
+data_transforms = {
+    'train': transforms.Compose([
+        transforms.RandomResizedCrop(input_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    'val': transforms.Compose([
+        transforms.Resize(input_size),
+        transforms.CenterCrop(input_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+}
+```
+
+为了验证上述猜想，于是编写compare_onnx_pth.py文件
+
+* 加载.pth和.onnx格式模型
+* 加载图片用作输入
+* 对输入.pth和.onnx格式模型的图片进行一样的数据预处理
+* 观察.pth和.onnx格式模型的预测输出是否一致
+
+经过测试，发现同一图像经过相同处理后，.pth和.onnx模型输出的预测一致
+
+破案! 是数据预处理的问题，在OpenCV C++上没有进行图像的数据处理
+
+### 研究以上预处理对数据产生的影响并将其作为在OpenCV C++上修改的根据
+
+为了在Ubuntu上用OpenCV完成 与在Windows上用PyTorch所作一样的数据预处理，需要研究以上预处理是如何改变数据的
+
+在predict.py中，逐个测试transforms.Compose中各项对图像数据的处理
+
+```python
+transform = transforms.Compose([
+    transforms.Resize(input_size),
+    transforms.CenterCrop(input_size),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+```
+
+测试发现如果输入图片的size和input_size一样的话（我们装甲板图片的size是48×48，且input_size也设为了48）transform.Resize和transform.CenterCrop处理后数据不产生变化，而transforms.ToTensor和transforms.Normalize这两个transforms就是导致Windows PyTorch下.pth模型和Ubuntu OpenCV C++下.onnx模型的预测结果不同的原因了
+
+
+
+查阅PyTorch官方文档，ToTensor会把PIL格式的Image和numpy.ndarray格式 (H x W x C) 的图片数据转换为tensor(C x H x W)
+
+**至关重要的是**，PIL格式和numpy.ndarray格式的值的范围是[0, 255]，而tensor格式的值的范围是[0.0, 1.0]
+
+因此ToTensor方法会把图片的像素值的范围从[0, 255]缩放到[0.0, 1.0]，而使用python的Image.open方法打开的图片是PIL格式的
+
+> Converts a PIL Image or numpy.ndarray (H x W x C) in the range [0, 255] to a torch.FloatTensor of shape (C x H x W) in the range [0.0, 1.0] 
+
+并根据 [pytorch中transforms.ToTensor()函数解析](https://blog.csdn.net/wuqingshan2010/article/details/110133046?ops_request_misc=%257B%2522request%255Fid%2522%253A%2522162650612116780366575233%2522%252C%2522scm%2522%253A%252220140713.130102334.pc%255Fall.%2522%257D&request_id=162650612116780366575233&biz_id=0&utm_medium=distribute.pc_search_result.none-task-blog-2~all~first_rank_v2~rank_v29-6-110133046.first_rank_v2_pc_rank_v29&utm_term=pytorch+transform+toTensor%E4%B9%8B%E5%90%8E%E5%8F%98%E5%9B%9Enumpy&spm=1018.2226.3001.4187) 和 [torchvision.transforms.ToTensor（细节）对应caffe的转换](https://blog.csdn.net/qq_22764813/article/details/103404462) 得知缩放的方法是每个像素值除以255
+
+
+
+查阅PyTorch官方文档，Normalize会根据输入的mean均值和std方差对tensor进行归一化，具体就是对各个channel的每个值减去对应channel的mean均值再除以std方差
+
+> Normalize a tensor image with mean and standard deviation. This transform does not support PIL Image. Given mean: `(mean[1],...,mean[n])` and std: `(std[1],..,std[n])` for `n` channels, this transform will normalize each channel of the input `torch.*Tensor` i.e., `output[channel] = (input[channel] - mean[channel]) / std[channel]`
+
+
+
+输入的PIL格式图片经过transform之后（其中的ToTensor方法使其变为tensor类型），还要unsqueeze进行维度扩张，扩张成(batch, channel, H, W)
+
+最终输入到.pth和.onnx模型，两者得到的预测结果一致（此处一定注意.pth模型的输入类型是tensor，而.onnx模型的输入类型是numpy.ndarray格式）
+
+终于证实了用同一装甲板号码图片作为输入，在Windows PyTorch与Ubuntu OpenCV C++会得到不同预测结果的原因是，数据的预处理
+
+
+
+
+
+## 在Ubuntu上用OpenCV进行数据预处理
+
+根据对PyTorch中transform操作的研究，只要在Ubuntu OpenCV C++上对输入数据用同样的缩放以及归一化，就能输入到.onnx的神经网络模型中，得到与在Windows PyTorch下预测同样的结果
 
 在参考了CSDN一篇blog对图像进行归一化处理后，了解到其中使用到的OpenCV的convertTo函数，可以批量地对数据进行缩放和归一化，符合我们对数据处理的要求
+
+本来考虑用eigen库进行矩阵运算，但是发现用OpenCV的convertTo函数只要4行代码就能实现数据的缩放和归一化了
 
 ```C++
 //time spend
@@ -381,4 +293,18 @@ std::cout << "spend " << ((t_end - t_begin)/ cv::getTickFrequency() *1000) << " 
 ```
 
 
+
+
+
+## 更换模型为Lenet-5以降低处理时间
+
+使用Resnet18进行装甲板数字号码识别的处理时间太长，经测试达到40+ms，完全不能适应我们Robomaster的比赛要求
+
+因此决定把模型从18层的Resnet18更换成8层的Lenet-5
+
+
+
+为此编写Lenet5.py、Lenet5_train_val_ArmorNum.py、predict_Lenet5_for_ArmorNum.py、pth2onnx_Lenet5.py
+
+Lenet5.py的编写参考了新加坡国立大学龙良曲老师的深度学习与PyTorch实战介绍的Lenet5
 
