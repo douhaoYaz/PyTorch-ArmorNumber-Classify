@@ -37,7 +37,6 @@ int main()
 //    cv::waitKey(0);
     //TODO
     //运行时间达到42ms，resnet18好像太大了，可以考虑换成Lenet5
-    //虽然convertTo函数是个很不错的选择，但仍然可以将其与eigen库对比，选择更快的一种
     cv::merge(bgrChannels, dst);
 
 
