@@ -14,7 +14,7 @@ from Lenet5 import Lenet5
 
 #model = torchvision.models.resnet50(pretrained=True)
 model=Lenet5()
-model.load_state_dict(torch.load("Lenet5_v3.pth"))
+model.load_state_dict(torch.load("Lenet5_v4.pth"))
 
 model.eval()
 
@@ -27,7 +27,7 @@ output_pth = model(example)
 print('output_pth:', output_pth)
 
 # --------------------------------
-export_onnx_file = "Lenet5_v3.onnx"
+export_onnx_file = "Lenet5_v4.onnx"
 torch.onnx.export(model,
                   example,
                   export_onnx_file,
@@ -41,11 +41,11 @@ torch.onnx.export(model,
 
 # 使用ONNX的api检查ONNX模型
 # 加载保存的模型并输出onnx.ModelProto结构
-onnx_model = onnx.load("Lenet5_v3.onnx")
+onnx_model = onnx.load("Lenet5_v4.onnx")
 # 验证模型的结构并确认模型具有有效的架构
 onnx.checker.check_model(onnx_model)
 
-ort_session = onnxruntime.InferenceSession("Lenet5_v3.onnx")
+ort_session = onnxruntime.InferenceSession("Lenet5_v4.onnx")
 
 def to_numpy(tensor):
     return tensor.detach().cpu().numpy() if tensor.requires_grad else tensor.cpu().numpy()

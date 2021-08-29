@@ -19,19 +19,19 @@ from Lenet5 import Lenet5
 from PIL import Image
 
 # 训练数据目录
-data_dir = "./2021_7_23工业相机获取装甲板号码数据集"
+data_dir = "./2021_7_31工业相机获取装甲板号码数据集"
 
 # 训练网络名
 model_name = "Lenet"
 
 # 权重文件输出目录及名称
-output_path="./Lenet5_v3.pth"
+output_path="./Lenet5_v4.pth"
 
 # 学习率
 lr_rate = 0.001
 
 # 种类数目
-num_classes = 5
+num_classes = 6
 
 # Batch Size取决你电脑内存大小
 batch_size = 8
@@ -159,7 +159,7 @@ if __name__ == '__main__':
             transforms.Grayscale(num_output_channels=1),  # 彩色图像转灰度图像num_output_channels默认1
             transforms.ToTensor(),
             # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            transforms.Normalize([0.210], [0.283])
+            transforms.Normalize([0.213], [0.286])
         ]),
         'val': transforms.Compose([
             transforms.Resize(input_size),
@@ -167,7 +167,7 @@ if __name__ == '__main__':
             transforms.Grayscale(num_output_channels=1),  # 彩色图像转灰度图像num_output_channels默认1
             transforms.ToTensor(),
             # transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            transforms.Normalize([0.210], [0.283])
+            transforms.Normalize([0.213], [0.286])
         ]),
     }
 

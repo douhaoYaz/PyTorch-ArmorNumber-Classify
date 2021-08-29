@@ -41,7 +41,7 @@ class Lenet5(nn.Module):
             nn.ReLU(),
             nn.Linear(120, 84),
             nn.ReLU(),
-            nn.Linear(84, 5)
+            nn.Linear(84, 6)
         )
 
         # # 临时构造一个tmp数据，用于测试conv_unit到fc_unit的第一个Linear层的第一个参数是多少
