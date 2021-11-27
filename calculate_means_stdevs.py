@@ -1,7 +1,7 @@
 from torchvision import datasets, transforms
 import os
 
-data_dir = "./2021_7_31工业相机获取装甲板号码数据集"
+data_dir = "./2021_11_26短焦相机获取装甲板号码数据集"
 
 # 单通道时
 means = [0]
@@ -49,3 +49,4 @@ print('means: ', means[0])
 print('stdves: ', stdevs[0])
 # 2021_7_23工业相机获取装甲板号码数据集:  means: 0.2105   stdves: 0.2829
 # 2021_7_31工业相机获取装甲板号码数据集:  means: 0.2130   stdves: 0.2859
+# 2021_11_26短焦相机获取装甲板号码数据集：means: 0.2679   stdves: 0.3111
